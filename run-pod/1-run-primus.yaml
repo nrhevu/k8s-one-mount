@@ -1,0 +1,274 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: qwen3-30b-a3b-bf16-seq4096-single-node-primus
+  namespace: vunguyen
+  labels:
+    app: qwen3-30b-a3b-bf16-seq4096-single-node-primus
+    engine: primus
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: qwen3-30b-a3b-bf16-seq4096-single-node-primus
+        engine: primus
+    spec:
+      restartPolicy: Never
+      hostNetwork: true
+      hostIPC: true
+      dnsPolicy: ClusterFirstWithHostNet
+
+      containers:
+        - name: primus
+          image: rocm/primus:v26.2
+          imagePullPolicy: IfNotPresent
+          workingDir: /workspace/Primus
+          command:
+            - bash
+            - -lc
+          args:
+            - |
+              set -euo pipefail
+              mkdir -p "${MODEL_ROOT}" "${DATA_ROOT}" "${CACHE_ROOT}" "${PRIMUS_LOG_DIR}" "${AITER_JIT_CACHE_DIR}"
+
+              export PATH=/opt/venv/bin:${PATH}
+              export PYTHONPATH="/workspace/Primus:/workspace/Primus/third_party/Megatron-LM:/workspace/Primus/third_party/Megatron-Bridge/src:/workspace/Primus/third_party/Megatron-Bridge/3rdparty/Megatron-LM:${PYTHONPATH:-}"
+
+              AITER_AOT_DIR=/opt/venv/lib/python3.12/site-packages/aiter/ops/triton/configs/gemm/aot
+              mkdir -p "$(dirname "${AITER_AOT_DIR}")"
+              if [[ ! -L "${AITER_AOT_DIR}" ]]; then
+                rm -rf "${AITER_AOT_DIR}"
+                ln -s "${AITER_JIT_CACHE_DIR}" "${AITER_AOT_DIR}"
+              fi
+
+              DIRECT_ARGS=(./primus-cli direct)
+              if [[ "${PRIMUS_DIRECT_NUMA}" == "1" || "${PRIMUS_DIRECT_NUMA}" == "true" || "${PRIMUS_DIRECT_NUMA}" == "True" ]]; then
+                DIRECT_ARGS+=(--numa)
+              fi
+
+              exec "${DIRECT_ARGS[@]}" \
+                --env NNODES="${NNODES}" \
+                --env GPUS_PER_NODE="${GPUS_PER_NODE}" \
+                --env NODE_RANK="${NODE_RANK}" \
+                --env MASTER_ADDR="${MASTER_ADDR}" \
+                --env MASTER_PORT="${MASTER_PORT}" \
+                --log_file "${PRIMUS_LOG_FILE}" \
+                -- train pretrain --config "${PRIMUS_CONFIG}" \
+                --train_iters "${PRIMUS_ITERS}" \
+                --lr_warmup_iters "${PRIMUS_LR_WARMUP_ITERS}" \
+                --micro_batch_size "${PRIMUS_MICRO_BATCH_SIZE}" \
+                --global_batch_size "${PRIMUS_GLOBAL_BATCH_SIZE}" \
+                --seq_length "${PRIMUS_SEQ_LENGTH}" \
+                --max_position_embeddings "${PRIMUS_MAX_POSITION_EMBEDDINGS}" \
+                --expert_model_parallel_size "${PRIMUS_EXPERT_MODEL_PARALLEL_SIZE}" \
+                --mock_data "${PRIMUS_MOCK_DATA}" \
+                --disable_last_saving "${PRIMUS_DISABLE_LAST_SAVING}" \
+                --moe_use_legacy_grouped_gemm "${PRIMUS_MOE_USE_LEGACY_GROUPED_GEMM}" \
+                --use_turbo_grouped_mlp "${PRIMUS_USE_TURBO_GROUPED_MLP}" \
+                --use_turbo_attention "${PRIMUS_USE_TURBO_ATTENTION}" \
+                --enable_primus_turbo "${PRIMUS_ENABLE_PRIMUS_TURBO}" \
+                --use_turbo_deepep "${PRIMUS_USE_TURBO_DEEPEP}" \
+                --turbo_deepep_num_cu "${PRIMUS_TURBO_DEEPEP_NUM_CU}" \
+                --moe_shared_expert_overlap "${PRIMUS_MOE_SHARED_EXPERT_OVERLAP}" \
+                --moe_router_dtype "${PRIMUS_MOE_ROUTER_DTYPE}" \
+                --turbo_sync_free_moe_stage "${PRIMUS_TURBO_SYNC_FREE_MOE_STAGE}" \
+                --enable_experimental "${PRIMUS_ENABLE_EXPERIMENTAL}" \
+                --apply_rope_fusion "${PRIMUS_APPLY_ROPE_FUSION}" \
+                --cross_entropy_fusion_impl "${PRIMUS_CROSS_ENTROPY_FUSION_IMPL}" \
+                --cross_entropy_loss_fusion "${PRIMUS_CROSS_ENTROPY_LOSS_FUSION}" \
+                --use_precision_aware_optimizer "${PRIMUS_USE_PRECISION_AWARE_OPTIMIZER}" \
+                --main_grads_dtype "${PRIMUS_MAIN_GRADS_DTYPE}" \
+                --exp_avg_dtype "${PRIMUS_EXP_AVG_DTYPE}" \
+                --exp_avg_sq_dtype "${PRIMUS_EXP_AVG_SQ_DTYPE}" \
+                --manual_gc "${PRIMUS_MANUAL_GC}" \
+                --manual_gc_interval "${PRIMUS_MANUAL_GC_INTERVAL}" \
+                --recompute_num_layers "${PRIMUS_RECOMPUTE_NUM_LAYERS}" \
+                --recompute_granularity "${PRIMUS_RECOMPUTE_GRANULARITY}" \
+                --recompute_method "${PRIMUS_RECOMPUTE_METHOD}" \
+                --disable_wandb "${PRIMUS_DISABLE_WANDB}" \
+                --disable_tensorboard "${PRIMUS_DISABLE_TENSORBOARD}" \
+                --profile "${PRIMUS_PROFILE}" \
+                --use_pytorch_profiler "${PRIMUS_USE_PYTORCH_PROFILER}" \
+                --backend_path "${PRIMUS_BACKEND_PATH}"
+
+
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - SYS_PTRACE
+            seccompProfile:
+              type: Unconfined
+
+          resources:
+            requests:
+              cpu: 32
+              memory: "256Gi"
+              amd.com/gpu: 8
+            limits:
+              memory: "256Gi"
+              amd.com/gpu: 8
+
+          env:
+            - name: RUN_SCRIPT
+              value: /workspace/Primus/run.sh
+            - name: PRIMUS_ROOT
+              value: /workspace/Primus
+            - name: PRIMUS_PYTHON
+              value: /opt/venv/bin/python3
+            - name: MODEL_ROOT
+              value: /mnt/primus/model
+            - name: DATA_ROOT
+              value: /mnt/primus/data
+            - name: CACHE_ROOT
+              value: /mnt/primus/cache
+            - name: PRIMUS_WORKSPACE
+              value: /mnt/primus/model/checkpoints/qwen3-30b-a3b-bf16-seq4096-single-node/output
+            - name: HF_HOME
+              value: /mnt/primus/model/huggingface
+            - name: PRIMUS_LOG_DIR
+              value: /mnt/primus/model/checkpoints/qwen3-30b-a3b-bf16-seq4096-single-node/output/logs
+            - name: AITER_JIT_CACHE_DIR
+              value: /mnt/primus/cache/aiter_jit_build
+            - name: PRIMUS_USER
+              value: vunguyen13
+            - name: PRIMUS_TEAM
+              value: vunguyen13
+            - name: PRIMUS_EXP_NAME
+              value: qwen3_30b_a3b_bf16_seq4096_single_node
+            - name: PRIMUS_CONFIG
+              value: examples/megatron/configs/MI355X/qwen3_30B_A3B-BF16-pretrain.yaml
+            - name: PRIMUS_ITERS
+              value: "20"
+            - name: PRIMUS_LR_WARMUP_ITERS
+              value: "2"
+            - name: PRIMUS_DIRECT_NUMA
+              value: "1"
+            - name: PRIMUS_LOG_FILE
+              value: /mnt/primus/model/checkpoints/qwen3-30b-a3b-bf16-seq4096-single-node/output/logs/qwen3_30b_a3b_bf16_seq4096_single_node.txt
+            - name: PRIMUS_MICRO_BATCH_SIZE
+              value: "4"
+            - name: PRIMUS_GLOBAL_BATCH_SIZE
+              value: "256"
+            - name: PRIMUS_SEQ_LENGTH
+              value: "4096"
+            - name: PRIMUS_MAX_POSITION_EMBEDDINGS
+              value: "4096"
+            - name: PRIMUS_EXPERT_MODEL_PARALLEL_SIZE
+              value: "8"
+            - name: PRIMUS_MOCK_DATA
+              value: "True"
+            - name: PRIMUS_DISABLE_LAST_SAVING
+              value: "False"
+            - name: PRIMUS_MOE_USE_LEGACY_GROUPED_GEMM
+              value: "True"
+            - name: PRIMUS_USE_TURBO_GROUPED_MLP
+              value: "True"
+            - name: PRIMUS_USE_TURBO_ATTENTION
+              value: "True"
+            - name: PRIMUS_ENABLE_PRIMUS_TURBO
+              value: "True"
+            - name: PRIMUS_USE_TURBO_DEEPEP
+              value: "True"
+            - name: PRIMUS_TURBO_DEEPEP_NUM_CU
+              value: "80"
+            - name: PRIMUS_MOE_SHARED_EXPERT_OVERLAP
+              value: "False"
+            - name: PRIMUS_MOE_ROUTER_DTYPE
+              value: fp32
+            - name: PRIMUS_TURBO_SYNC_FREE_MOE_STAGE
+              value: "1"
+            - name: PRIMUS_ENABLE_EXPERIMENTAL
+              value: "True"
+            - name: PRIMUS_APPLY_ROPE_FUSION
+              value: "True"
+            - name: PRIMUS_CROSS_ENTROPY_FUSION_IMPL
+              value: te
+            - name: PRIMUS_CROSS_ENTROPY_LOSS_FUSION
+              value: "True"
+            - name: PRIMUS_USE_PRECISION_AWARE_OPTIMIZER
+              value: "True"
+            - name: PRIMUS_MAIN_GRADS_DTYPE
+              value: bf16
+            - name: PRIMUS_EXP_AVG_DTYPE
+              value: bf16
+            - name: PRIMUS_EXP_AVG_SQ_DTYPE
+              value: bf16
+            - name: PRIMUS_MANUAL_GC
+              value: "True"
+            - name: PRIMUS_MANUAL_GC_INTERVAL
+              value: "1"
+            - name: PRIMUS_RECOMPUTE_NUM_LAYERS
+              value: "0"
+            - name: PRIMUS_RECOMPUTE_GRANULARITY
+              value: full
+            - name: PRIMUS_RECOMPUTE_METHOD
+              value: block
+            - name: PRIMUS_DISABLE_WANDB
+              value: "True"
+            - name: PRIMUS_DISABLE_TENSORBOARD
+              value: "True"
+            - name: PRIMUS_PROFILE
+              value: "False"
+            - name: PRIMUS_USE_PYTORCH_PROFILER
+              value: "False"
+            - name: PRIMUS_BACKEND_PATH
+              value: /workspace/Primus/third_party/Megatron-LM
+            - name: PRIMUS_LOG_COLOR
+              value: "0"
+            - name: PRIMUS_LOG_LEVEL
+              value: INFO
+            - name: PRIMUS_LOG_TIMESTAMP
+              value: "1"
+            - name: ENABLE_NUMA_BINDING
+              value: "1"
+            - name: HSA_KERNARG_POOL_SIZE
+              value: "12582912"
+            - name: HSA_NO_SCRATCH_RECLAIM
+              value: "1"
+            - name: GPU_MAX_HW_QUEUES
+              value: "2"
+            - name: NVTE_CK_USES_BWD_V3
+              value: "1"
+            - name: NCCL_IB_DISABLE
+              value: "1"
+            - name: NCCL_P2P_LEVEL
+              value: SYS
+            - name: TORCHDYNAMO_DISABLE
+              value: "1"
+            - name: TORCH_COMPILE_DISABLE
+              value: "1"
+            - name: PRIMUS_HOST_RUNTIME_DIR
+              value: /opt/venv
+            - name: ANP_PLUGIN_DIR
+              value: /opt/venv/anp
+            - name: NNODES
+              value: "1"
+            - name: GPUS_PER_NODE
+              value: "8"
+            - name: NODE_RANK
+              value: "0"
+            - name: MASTER_ADDR
+              value: localhost
+            - name: MASTER_PORT
+              value: "1234"
+
+          volumeMounts:
+            - name: model
+              mountPath: /mnt/primus/model
+            - name: data
+              mountPath: /mnt/primus/data
+            - name: cache
+              mountPath: /mnt/primus/cache
+
+      volumes:
+        - name: model
+          persistentVolumeClaim:
+            claimName: vu.nguyen.model
+        - name: data
+          persistentVolumeClaim:
+            claimName: vu.nguyen.data
+        - name: cache
+          persistentVolumeClaim:
+            claimName: vu.nguyen.cache
