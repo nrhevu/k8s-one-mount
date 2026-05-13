@@ -1,0 +1,46 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: primus-volume-debug
+  namespace: vunguyen
+  labels:
+    app: primus-volume-debug
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: primus-volume-debug
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: debug
+          image: ubuntu:22.04
+          imagePullPolicy: IfNotPresent
+          command:
+            - bash
+            - -lc
+          args:
+            - |
+              echo "debug pod is ready"
+              echo "model: /mnt/primus/model"
+              echo "data:  /mnt/primus/data"
+              echo "cache: /mnt/primus/cache"
+              sleep infinity
+          volumeMounts:
+            - name: model
+              mountPath: /mnt/primus/model
+            - name: data
+              mountPath: /mnt/primus/data
+            - name: cache
+              mountPath: /mnt/primus/cache
+      volumes:
+        - name: model
+          persistentVolumeClaim:
+            claimName: vu.nguyen.model
+        - name: data
+          persistentVolumeClaim:
+            claimName: vu.nguyen.data
+        - name: cache
+          persistentVolumeClaim:
+            claimName: vu.nguyen.cache
