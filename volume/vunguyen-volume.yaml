@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vunguyen
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: vu.nguyen.dev
+spec:
+  capacity:
+    storage: 600Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  volumeMode: Filesystem
+  hostPath:
+    path: /local/data/vunguyen13/onenexus/alpha_version/volume/vunguyen
+    type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vu.nguyen.dev
+  namespace: vunguyen
+spec:
+  volumeName: vu.nguyen.dev
+  storageClassName: ""
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 600Gi
+  volumeMode: Filesystem

@@ -103,11 +103,11 @@ spec:
 
           resources:
             requests:
-              cpu: 32
-              memory: "256Gi"
+              cpu: 64
+              memory: "512Gi"
               amd.com/gpu: 8
             limits:
-              memory: "256Gi"
+              memory: "512Gi"
               amd.com/gpu: 8
 
           env:
@@ -255,20 +255,10 @@ spec:
               value: "1234"
 
           volumeMounts:
-            - name: model
-              mountPath: /mnt/primus/model
-            - name: data
-              mountPath: /mnt/primus/data
-            - name: cache
-              mountPath: /mnt/primus/cache
+            - name: primus-storage
+              mountPath: /mnt/primus
 
       volumes:
-        - name: model
+        - name: primus-storage
           persistentVolumeClaim:
-            claimName: vu.nguyen.model
-        - name: data
-          persistentVolumeClaim:
-            claimName: vu.nguyen.data
-        - name: cache
-          persistentVolumeClaim:
-            claimName: vu.nguyen.cache
+            claimName: vu.nguyen.dev
