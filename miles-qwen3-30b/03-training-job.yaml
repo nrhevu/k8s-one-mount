@@ -1,0 +1,132 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: miles-rocm-article-qwen3-30b-a3b-train
+  namespace: vunguyen13
+  labels:
+    app: miles-rocm-qwen3-30b-a3b
+    engine: miles
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: miles-rocm-qwen3-30b-a3b
+        engine: miles
+    spec:
+      restartPolicy: Never
+      hostNetwork: true
+      hostIPC: true
+      dnsPolicy: ClusterFirstWithHostNet
+      nodeSelector:
+        kubernetes.io/hostname: vu
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - vu
+      tolerations:
+        - key: gpu
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      initContainers:
+        - name: asset-prep
+          image: rlsys/miles:MI350-355-latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - bash
+            - -lc
+          args:
+            - /opt/miles-k8s/asset-prep.sh
+          envFrom:
+            - configMapRef:
+                name: miles-rocm-article-env
+            - secretRef:
+                name: miles-runtime-secrets
+                optional: true
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - SYS_PTRACE
+            seccompProfile:
+              type: Unconfined
+          resources:
+            requests:
+              cpu: "4"
+              memory: 16Gi
+              amd.com/gpu: "8"
+            limits:
+              memory: 256Gi
+              amd.com/gpu: "8"
+          volumeMounts:
+            - name: experiment-storage
+              mountPath: /mnt/miles
+            - name: scripts
+              mountPath: /opt/miles-k8s
+              readOnly: true
+            - name: rocm-kfd
+              mountPath: /dev/kfd
+            - name: rocm-dri
+              mountPath: /dev/dri
+      containers:
+        - name: trainer
+          image: rlsys/miles:MI350-355-latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - bash
+            - -lc
+          args:
+            - /opt/miles-k8s/train.sh
+          envFrom:
+            - configMapRef:
+                name: miles-rocm-article-env
+            - secretRef:
+                name: miles-runtime-secrets
+                optional: true
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - SYS_PTRACE
+            seccompProfile:
+              type: Unconfined
+          resources:
+            requests:
+              cpu: "32"
+              memory: 256Gi
+              amd.com/gpu: "8"
+            limits:
+              memory: 512Gi
+              amd.com/gpu: "8"
+          volumeMounts:
+            - name: experiment-storage
+              mountPath: /mnt/miles
+            - name: scripts
+              mountPath: /opt/miles-k8s
+              readOnly: true
+            - name: rocm-kfd
+              mountPath: /dev/kfd
+            - name: rocm-dri
+              mountPath: /dev/dri
+      volumes:
+        - name: experiment-storage
+          persistentVolumeClaim:
+            claimName: miles-rocm-article-qwen3-30b-a3b
+        - name: scripts
+          configMap:
+            name: miles-rocm-article-scripts
+            defaultMode: 0555
+        - name: rocm-kfd
+          hostPath:
+            path: /dev/kfd
+            type: CharDevice
+        - name: rocm-dri
+          hostPath:
+            path: /dev/dri
+            type: Directory

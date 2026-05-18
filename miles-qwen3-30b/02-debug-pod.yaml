@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: miles-rocm-article-qwen3-30b-a3b-shell
+  namespace: vunguyen13
+  labels:
+    app: miles-rocm-qwen3-30b-a3b
+    role: debug
+spec:
+  restartPolicy: Never
+  containers:
+    - name: shell
+      image: rlsys/miles:MI350-355-latest
+      imagePullPolicy: IfNotPresent
+      command:
+        - bash
+        - -lc
+      args:
+        - |
+          set -euo pipefail
+          echo "Debug shell is ready."
+          echo "Shared volume: /mnt/miles"
+          echo "Scripts: /opt/miles-k8s"
+          sleep infinity
+      envFrom:
+        - configMapRef:
+            name: miles-rocm-article-env
+        - secretRef:
+            name: miles-runtime-secrets
+            optional: true
+      volumeMounts:
+        - name: experiment-storage
+          mountPath: /mnt/miles
+        - name: scripts
+          mountPath: /opt/miles-k8s
+          readOnly: true
+  volumes:
+    - name: experiment-storage
+      persistentVolumeClaim:
+        claimName: miles-rocm-article-qwen3-30b-a3b
+    - name: scripts
+      configMap:
+        name: miles-rocm-article-scripts
+        defaultMode: 0555

@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vunguyen13
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: miles-rocm-article-qwen3-30b-a3b
+  labels:
+    app: miles-rocm-qwen3-30b-a3b
+spec:
+  capacity:
+    storage: 2Ti
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  volumeMode: Filesystem
+  hostPath:
+    path: /scratch/vunguyen13/miles-rocm-article-qwen3-30b-a3b
+    type: DirectoryOrCreate
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - vu
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: miles-rocm-article-qwen3-30b-a3b
+  namespace: vunguyen13
+  labels:
+    app: miles-rocm-qwen3-30b-a3b
+spec:
+  volumeName: miles-rocm-article-qwen3-30b-a3b
+  storageClassName: ""
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Ti
+  volumeMode: Filesystem
