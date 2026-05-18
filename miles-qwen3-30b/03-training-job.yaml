@@ -58,8 +58,8 @@ spec:
               type: Unconfined
           resources:
             requests:
-              cpu: "4"
-              memory: 16Gi
+              cpu: "32"
+              memory: 256Gi
               amd.com/gpu: "8"
             limits:
               memory: 256Gi
@@ -99,7 +99,7 @@ spec:
           resources:
             requests:
               cpu: "32"
-              memory: 256Gi
+              memory: 512Gi
               amd.com/gpu: "8"
             limits:
               memory: 512Gi
@@ -107,6 +107,8 @@ spec:
           volumeMounts:
             - name: experiment-storage
               mountPath: /mnt/miles
+            - name: ray-temp
+              mountPath: /tmp/ray
             - name: scripts
               mountPath: /opt/miles-k8s
               readOnly: true
@@ -118,6 +120,9 @@ spec:
         - name: experiment-storage
           persistentVolumeClaim:
             claimName: miles-rocm-article-qwen3-30b-a3b
+        - name: ray-temp
+          emptyDir:
+            sizeLimit: 10Gi
         - name: scripts
           configMap:
             name: miles-rocm-article-scripts

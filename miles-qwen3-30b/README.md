@@ -32,6 +32,9 @@ Both `asset-prep` and `trainer` request `amd.com/gpu: "8"`, tolerate the
 conversion also needs HIP GPU access. `asset-prep` is an init container so
 conversion owns the GPUs before training starts. The ROCm visibility variables
 allow devices `0,1,2,3,4,5,6,7`, and Ray starts with `RAY_NUM_GPUS=8`.
+Ray uses `/tmp/ray` on a job-local `emptyDir` so its UNIX socket paths stay
+below the Linux `AF_UNIX` path length limit; run outputs and checkpoints still
+stay on the retained PVC under `/mnt/miles`.
 
 Use the debug pod only when you need to inspect the shared volume:
 

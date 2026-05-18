@@ -29,6 +29,7 @@ data:
   GPU_DEVICE_ORDINAL: 0,1,2,3,4,5,6,7
   RAY_NUM_CPUS: "64"
   RAY_NUM_GPUS: "8"
+  RAY_TEMP_DIR: /tmp/ray
   MILES_ALLOW_PORT_CONFLICTS: "0"
   USE_PROMETHEUS: "0"
   PROMETHEUS_PORT: "9090"
@@ -230,7 +231,7 @@ data:
     GPU_DEVICE_ORDINAL="${GPU_DEVICE_ORDINAL:-${HIP_VISIBLE_DEVICES}}"
     RAY_NUM_CPUS="${RAY_NUM_CPUS:-64}"
     RAY_NUM_GPUS="${RAY_NUM_GPUS:-8}"
-    RAY_TEMP_DIR="${RAY_TEMP_DIR:-${TMP_DIR}/ray}"
+    RAY_TEMP_DIR="${RAY_TEMP_DIR:-/tmp/ray}"
     MILES_ALLOW_PORT_CONFLICTS="${MILES_ALLOW_PORT_CONFLICTS:-0}"
 
     export HF_HOME="${HF_HOME:-${CACHE_ROOT}/huggingface}"
@@ -550,6 +551,7 @@ data:
     echo "RUN_MODE=${RUN_MODE}"
     echo "OUTPUT_DIR=${OUTPUT_DIR}"
     echo "SAVE_CKPT=${SAVE_CKPT}"
+    echo "RAY_TEMP_DIR=${RAY_TEMP_DIR}"
     echo "HF_CKPT=${HF_CKPT}"
     echo "REF_CKPT=${REF_CKPT}"
     rocm-smi --showproductname --showuse --showmemuse --showpidgpus || true
